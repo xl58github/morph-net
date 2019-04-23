@@ -16,7 +16,10 @@ SUPPORTED_OPS = FLOP_OPS + (
 class CostCalculator(object):
   """CostCalculator that calculates resource cost/loss for a network."""
 
-  def __init__(self, op_regularizer_manager, resource_function):
+  def __init__(self,
+               op_regularizer_manager,
+               resource_function,
+               allow_noop_regularizer=False):
     """Creates an instance.
 
     Args:
@@ -36,9 +39,13 @@ class CostCalculator(object):
           reg_outputs; Scalar Tensor which is the sum over the output
             regularization vector.
           batch_size; Integer batch size to calculate cost/loss for.
+      allow_noop_regularizer: A Boolean. If False, will raise an exception if no
+        valid ops are found in the graph. Set this to True if no-op behavior
+        from the regularizer is intentional (such as in tests).
     """
     self._manager = op_regularizer_manager
     self._resource_function = resource_function
+    self._allow_noop_regularizer = allow_noop_regularizer
 
   def _get_cost_or_regularization_term(self, is_regularization, ops=None):
     """Returns cost or regularization term for ops.
@@ -51,6 +58,10 @@ class CostCalculator(object):
 
     Returns:
       Cost or regularization term for ops as a tensor or float.
+
+    Raises:
+      ValueError: if allow_noop_regularizer is False in constructor, and the
+      regularizer found no valid ops (and is thus no-op).
     """
     total = 0.0
     if not ops:
@@ -80,6 +91,8 @@ class CostCalculator(object):
 
     # If at least one supported op is present, type would be tensor, not float.
     if isinstance(total, float):
+      if not self._allow_noop_regularizer:
+        raise ValueError('Regularizer found no valid ops.')
       # Tests rely on this function not raising exception in this case.
       tf.logging.warning('No supported ops found.')
     return total
